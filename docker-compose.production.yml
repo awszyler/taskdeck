@@ -1,0 +1,168 @@
+# ── Taskdeck Production Stack ─────────────────────────────────────────────
+# Services: postgres  →  core  →  caddy (TLS + static + reverse proxy)
+# Runner is intentionally OUTSIDE compose — see the commented block at the
+# bottom if you want a containerised runner instead.
+#
+# Quick start:
+#   cp .env.production.example .env.production   # fill real values
+#   docker compose -f docker-compose.production.yml up -d
+
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: taskdeck
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env.production}
+      POSTGRES_DB: taskdeck
+    volumes:
+      - taskdeck-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskdeck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Core API ────────────────────────────────────────────────────────────────
+  core:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Sandbox host (per-task gVisor sandbox provisioning + reverse proxy) ───
+  # Spawns sibling docker containers via the host docker daemon
+  # (mounted /var/run/docker.sock) and bind-mounts the host's
+  # per-task worktree dir into them. Reachable only from within the
+  # docker-compose network — Caddy proxies /sandbox/* to it after
+  # forward_auth-ing through core.
+  #
+  # Security note: mounting docker.sock = root-equivalent on the host.
+  # Acceptable in single-tenant test deployments; revisit before SaaS.
+  # See docs/p6.3-decisions.md (P-1).
+  sandbox-host:
+    build:
+      context: .
+      dockerfile: apps/sandbox-host/Dockerfile
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      TD_SBH_PORT: "9101"
+      TD_SBH_WORK_DIR: "/var/taskdeck/work"
+      TD_SBH_CONTAINER_RUNTIME: "runsc"
+      # P6.3.7 cold archive. Bucket + region come from .env.production
+      # (TD_SBH_ARCHIVE_BUCKET/REGION). The core URL is the in-network
+      # service name; the bearer token is shared with the runner.
+      TD_SBH_CORE_HTTP_URL: "http://core:8000"
+      TD_SBH_CORE_SERVICE_TOKEN: "${TD_RUNNER_BEARER_TOKEN}"
+    volumes:
+      # Sibling-container access to the host docker daemon.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # The per-task worktree root the runner writes to. Must be the
+      # same host path the runner uses (its TD_WORK_DIR).
+      - /var/taskdeck/work:/var/taskdeck/work
+    depends_on:
+      core:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9101/health')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ── Caddy (TLS termination + static SPA + reverse proxy) ───────────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    # Bind to non-standard host ports so ALB/CloudFront can route to Caddy
+    # without conflicting with any host-level service on 80/443.
+    # Set your ALB target group port to 8888 (HTTP) / 8443 (HTTPS).
+    ports:
+      - "0.0.0.0:8888:80"
+      - "0.0.0.0:8443:443"
+      - "0.0.0.0:8443:443/udp"   # HTTP/3
+    environment:
+      PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME:?PUBLIC_HOSTNAME must be set in .env.production}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./apps/web/dist:/srv/web:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      core:
+        condition: service_healthy
+      sandbox-host:
+        condition: service_started
+
+  # ── Prometheus (private to compose network) ─────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    restart: unless-stopped
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - taskdeck-prom-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    depends_on:
+      core:
+        condition: service_healthy
+
+  # ── Grafana (operator-only, reached via SSH local-forward) ──────────────
+  grafana:
+    image: grafana/grafana:11.3.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set in .env.production}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SERVER_ROOT_URL: "http://localhost:3001"
+    volumes:
+      - taskdeck-grafana-data:/var/lib/grafana
+      - ./deploy/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./deploy/grafana/dashboards-provisioning:/etc/grafana/provisioning/dashboards:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./deploy/grafana/alerting:/etc/grafana/provisioning/alerting:ro
+    depends_on:
+      - prometheus
+
+# ── OPTIONAL: containerised runner ─────────────────────────────────────────
+# Uncomment this block if you prefer the runner in Docker instead of systemd.
+# Note: host-path bind mounts for git worktrees work fine here; just set
+# TD_WORK_DIR to a path that exists on the host and add it to volumes.
+#
+#  runner:
+#    build:
+#      context: .
+#      dockerfile: Dockerfile.runner          # create separately or extend Dockerfile
+#    restart: unless-stopped
+#    env_file: .env.production
+#    environment:
+#      TD_CORE_WS_URL: ws://core:8000/api/v1/crp/connect
+#      TD_CORE_HTTP_URL: http://core:8000
+#    volumes:
+#      - /var/taskdeck/work:/var/taskdeck/work
+#    depends_on:
+#      core:
+#        condition: service_healthy
+
+volumes:
+  taskdeck-pgdata:
+  caddy-data:
+  caddy-config:
+  taskdeck-prom-data:
+  taskdeck-grafana-data:

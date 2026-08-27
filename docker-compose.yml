@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: taskdeck-postgres
+    environment:
+      POSTGRES_USER: taskdeck
+      POSTGRES_PASSWORD: taskdeck
+      POSTGRES_DB: taskdeck
+    ports:
+      - "5432:5432"
+    volumes:
+      - taskdeck-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskdeck"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  taskdeck-pgdata:

@@ -1,0 +1,102 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: taskdeck-core
+    folder: Taskdeck
+    interval: 30s
+    rules:
+      - uid: td-core-down
+        title: core_down
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange: {from: 60, to: 0}
+            datasourceUid: taskdeck-prom
+            model:
+              editorMode: code
+              expr: 'up{job="taskdeck-core"} == 0'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 1m
+        annotations:
+          summary: Taskdeck core is down or unscrapable.
+        labels:
+          severity: critical
+
+      - uid: td-http-5xx-burst
+        title: http_5xx_burst
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: taskdeck-prom
+            model:
+              editorMode: code
+              expr: 'sum(rate(http_requests_total{job="taskdeck-core",status=~"5.."}[5m])) > 0.1'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+        noDataState: OK
+        execErrState: OK
+        for: 5m
+        annotations:
+          summary: 5xx rate above 0.1/s for 5 minutes.
+        labels:
+          severity: warning
+
+      - uid: td-task-failure-rate-high
+        title: task_failure_rate_high
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: taskdeck-prom
+            model:
+              editorMode: code
+              expr: |
+                (
+                  sum(rate(ccpt_task_state_transitions_total{to_status="failed"}[10m]))
+                  /
+                  sum(rate(ccpt_task_state_transitions_total{to_status=~"done|failed"}[10m]))
+                ) > 0.3
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+        noDataState: OK
+        execErrState: OK
+        for: 10m
+        annotations:
+          summary: More than 30% of finished tasks are failing.
+        labels:
+          severity: warning
+
+      - uid: td-embed-p95-slow
+        title: embed_p95_slow
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: taskdeck-prom
+            model:
+              editorMode: code
+              expr: |
+                histogram_quantile(0.95,
+                  sum by (le) (rate(ccpt_llm_call_duration_seconds_bucket{kind="embed"}[5m]))
+                ) > 5
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+        noDataState: OK
+        execErrState: OK
+        for: 10m
+        annotations:
+          summary: Embedding p95 latency above 5s.
+        labels:
+          severity: warning

@@ -1,0 +1,19 @@
+# Default per-model pricing (USD).
+# These are best-effort approximations — override via TD_PRICING_FILE.
+models:
+  anthropic/claude-sonnet-4-6:
+    input_per_million: 3.00
+    output_per_million: 15.00
+  anthropic/claude-opus-4-7:
+    input_per_million: 15.00
+    output_per_million: 75.00
+  anthropic/claude-haiku-4-5-20251001:
+    input_per_million: 0.80
+    output_per_million: 4.00
+  openai/whisper-1:
+    audio_per_second: 0.0001
+  openai/text-embedding-3-small:
+    input_per_million: 0.02
+  qwen3-coder-30b:
+    input_per_million: 0.20
+    output_per_million: 0.60

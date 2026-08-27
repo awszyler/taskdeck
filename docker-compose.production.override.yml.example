@@ -1,0 +1,35 @@
+# Production override — copy to docker-compose.production.override.yml and edit.
+#
+#   cp docker-compose.production.override.yml.example docker-compose.production.override.yml
+#
+# This file is gitignored so local edits (paths, ports) are never committed.
+# It is merged on top of docker-compose.production.yml at runtime:
+#
+#   docker compose \
+#     -f docker-compose.production.yml \
+#     -f docker-compose.production.override.yml \
+#     --env-file .env.production \
+#     up -d
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  core:
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  caddy:
+    volumes:
+      - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
+      - ./apps/web/dist:/srv/web:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  # Grafana stays loopback-only — operator reaches it via:
+  #   ssh -L 3001:127.0.0.1:3001 ec2-user@<host>
+  # then opens http://localhost:3001
+  grafana:
+    ports:
+      - "127.0.0.1:3001:3000"

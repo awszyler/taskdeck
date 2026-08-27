@@ -1,0 +1,207 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Core service up",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "taskdeck-prom"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "green", "value": 1}
+            ]
+          },
+          "mappings": [
+            {"options": {"0": {"text": "DOWN", "color": "red"}}, "type": "value"},
+            {"options": {"1": {"text": "UP", "color": "green"}}, "type": "value"}
+          ]
+        }
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "options": {"colorMode": "background", "graphMode": "none", "textMode": "value"},
+      "targets": [
+        {
+          "expr": "up{job=\"taskdeck-core\"}",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Connected runners",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "taskdeck-prom"},
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "options": {"colorMode": "value", "graphMode": "area"},
+      "targets": [
+        {"expr": "ccpt_runners_connected", "instant": true, "refId": "A"}
+      ]
+    },
+    {
+      "id": 3,
+      "title": "5xx rate (per s)",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "taskdeck-prom"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 0.05},
+              {"color": "red", "value": 0.5}
+            ]
+          },
+          "unit": "ops"
+        }
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+      "options": {"colorMode": "background", "graphMode": "none"},
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{job=\"taskdeck-core\",status=~\"5..\"}[5m]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "HTTP RPS by handler",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "taskdeck-prom"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "fieldConfig": {
+        "defaults": {"unit": "ops"}
+      },
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "targets": [
+        {
+          "expr": "sum by (handler) (rate(http_requests_total{job=\"taskdeck-core\"}[1m]))",
+          "legendFormat": "{{handler}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "HTTP latency p95 by handler",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "taskdeck-prom"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "fieldConfig": {
+        "defaults": {"unit": "s"}
+      },
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, handler) (rate(http_request_duration_seconds_bucket{job=\"taskdeck-core\"}[5m])))",
+          "legendFormat": "{{handler}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Tasks by status",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "taskdeck-prom"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {"fillOpacity": 30, "stacking": {"mode": "normal"}}
+        }
+      },
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "targets": [
+        {
+          "expr": "ccpt_tasks_by_status",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Task state transitions (per 5m)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "taskdeck-prom"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "fieldConfig": {"defaults": {"unit": "ops"}},
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "targets": [
+        {
+          "expr": "sum by (to_status, actor) (rate(ccpt_task_state_transitions_total[5m]))",
+          "legendFormat": "{{to_status}} ({{actor}})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "LLM call p95 latency",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "taskdeck-prom"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, kind, provider) (rate(ccpt_llm_call_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{kind}}/{{provider}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Cost events (per 5m)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "taskdeck-prom"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+      "fieldConfig": {"defaults": {"unit": "ops"}},
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "targets": [
+        {
+          "expr": "sum by (provider, model) (rate(ccpt_cost_events_total[5m]))",
+          "legendFormat": "{{provider}}/{{model}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["taskdeck"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "Taskdeck Overview",
+  "uid": "taskdeck-overview",
+  "version": 1,
+  "weekStart": ""
+}

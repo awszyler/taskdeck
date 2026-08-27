@@ -1,0 +1,17 @@
+[Unit]
+Description=Taskdeck sandbox iptables rules (block IMDS + taskdeck_default)
+# DOCKER-USER chain is created by dockerd at startup — wait for it.
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/taskdeck/deploy/sandbox-iptables.sh install
+ExecStop=/opt/taskdeck/deploy/sandbox-iptables.sh uninstall
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

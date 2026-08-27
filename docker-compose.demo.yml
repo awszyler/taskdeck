@@ -1,0 +1,79 @@
+# Demo stack: postgres + core + runner + web. One command.
+# First run is slow (~3 min) because of the multi-stage Node build for
+# the web image; subsequent ups reuse the layer cache.
+#
+# Usage:
+#   docker compose -f docker-compose.demo.yml up
+#
+# Open http://localhost:5173 when all services are healthy.
+# Optional seed:
+#   docker compose -f docker-compose.demo.yml exec core python /app/scripts/seed-demo.py
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: taskdeck
+      POSTGRES_PASSWORD: taskdeck
+      POSTGRES_DB: taskdeck
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskdeck"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    # No host port; only core reaches it via the docker network.
+
+  core:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://taskdeck:taskdeck@postgres:5432/taskdeck
+      TD_RUNNER_BEARER_TOKEN: demo-runner-token
+      CORS_ORIGINS: http://localhost:5173
+      TD_ARTIFACT_DIR: /var/taskdeck/artifacts
+      # No LiteLLM by default — Intent Parser falls back gracefully.
+      # No WeCom — endpoint returns 503.
+    volumes:
+      - artifact-dir:/var/taskdeck/artifacts
+    # No host port; web (caddy) reaches via service name "core:8000".
+
+  runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder   # reuses the same builder layer as core; runner source is in /build/packages/runner
+    depends_on:
+      core:
+        condition: service_started
+    command: ["/opt/venv/bin/python", "-m", "taskdeck_runner.main"]
+    environment:
+      TD_CORE_WS_URL: ws://core:8000/api/v1/crp/connect
+      TD_CORE_HTTP_URL: http://core:8000
+      TD_RUNNER_TOKEN: demo-runner-token
+      TD_RUNNER_NAME: demo-runner
+      TD_MAX_PARALLEL: "2"
+      TD_WORK_DIR: /var/taskdeck/work
+      # Put runner source on the path since it is not installed into the venv.
+      PYTHONPATH: /build/packages/runner
+    volumes:
+      - work-dir:/var/taskdeck/work
+    working_dir: /build/packages/runner
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    depends_on:
+      core:
+        condition: service_started
+    ports:
+      - "127.0.0.1:5173:80"
+    # The web image is multi-stage: node 20 → pnpm build → caddy serving dist + reverse-proxy /api/* to core.
+
+volumes:
+  artifact-dir:
+  work-dir:

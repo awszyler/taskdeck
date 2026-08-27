@@ -1,0 +1,30 @@
+:80 {
+    handle /api/v1/crp/* {
+        reverse_proxy core:8000
+    }
+    handle /api/v1/ws {
+        reverse_proxy core:8000
+    }
+
+    # Sandbox proxy (P6.3) — auth via core forward_auth, then proxy.
+    @sandbox path_regexp sandbox ^/sandbox/([^/]+)(/.*)?$
+    handle @sandbox {
+        forward_auth core:8000 {
+            uri /api/v1/sandbox/auth/{re.sandbox.1}
+            copy_headers Cookie
+        }
+        reverse_proxy sandbox-host:9101
+    }
+
+    handle /api/* {
+        reverse_proxy core:8000
+    }
+    handle /health {
+        reverse_proxy core:8000
+    }
+    handle {
+        root * /srv/web
+        try_files {path} /index.html
+        file_server
+    }
+}

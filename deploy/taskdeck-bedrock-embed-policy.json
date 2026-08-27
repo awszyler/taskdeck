@@ -1,0 +1,17 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowBedrockEmbedding",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:ap-northeast-1::foundation-model/cohere.embed-multilingual-v3",
+        "arn:aws:bedrock:ap-northeast-1::foundation-model/cohere.embed-english-v3",
+        "arn:aws:bedrock:ap-northeast-1::foundation-model/amazon.titan-embed-text-v2:0"
+      ]
+    }
+  ]
+}

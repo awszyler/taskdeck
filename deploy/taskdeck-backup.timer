@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Taskdeck Postgres backup (03:00 UTC)
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=taskdeck-backup.service
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,22 @@
+# User/Group default: ec2-user (the default cloud-init user on Amazon Linux / Ubuntu).
+# To run as a dedicated system user instead, create it first:
+#   sudo useradd -r -s /usr/sbin/nologin -m -d /opt/taskdeck taskdeck
+#   sudo chown -R taskdeck:taskdeck /opt/taskdeck /var/taskdeck
+# Then change User and Group below to "taskdeck".
+[Unit]
+Description=Taskdeck runner daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/opt/taskdeck
+EnvironmentFile=/opt/taskdeck/.env.runner
+ExecStart=/opt/taskdeck/.venv/bin/python -m taskdeck_runner.main
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

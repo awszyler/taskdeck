@@ -1,0 +1,13 @@
+[Unit]
+Description=Taskdeck Postgres backup to S3
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/opt/taskdeck
+ExecStart=/opt/taskdeck/deploy/backup.sh
+StandardOutput=journal
+StandardError=journal

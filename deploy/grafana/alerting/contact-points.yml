@@ -1,0 +1,13 @@
+apiVersion: 1
+contactPoints:
+  - orgId: 1
+    name: stub-webhook
+    receivers:
+      - uid: stub-webhook
+        type: webhook
+        settings:
+          # Stub URL — replace with a real receiver (WeCom proxy, Slack, etc.)
+          # in 4.2.x. The endpoint never resolves; alerts fail silently for now.
+          url: http://localhost:9999/taskdeck-alerts
+          httpMethod: POST
+        disableResolveMessage: false

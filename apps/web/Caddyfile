@@ -1,0 +1,19 @@
+:80 {
+    handle /api/v1/crp/* {
+        reverse_proxy core:8000
+    }
+    handle /api/v1/ws {
+        reverse_proxy core:8000
+    }
+    handle /api/* {
+        reverse_proxy core:8000
+    }
+    handle /health {
+        reverse_proxy core:8000
+    }
+    handle {
+        root * /srv/web
+        try_files {path} /index.html
+        file_server
+    }
+}

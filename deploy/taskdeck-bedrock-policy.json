@@ -1,0 +1,30 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowBedrockEmbedding",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:ap-northeast-1::foundation-model/cohere.embed-multilingual-v3",
+        "arn:aws:bedrock:ap-northeast-1::foundation-model/cohere.embed-english-v3",
+        "arn:aws:bedrock:ap-northeast-1::foundation-model/amazon.titan-embed-text-v2:0"
+      ]
+    },
+    {
+      "Sid": "AllowBedrockIntentParserOpus47",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:us-east-1:*:inference-profile/us.anthropic.claude-opus-4-7",
+        "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-7",
+        "arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-opus-4-7",
+        "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-opus-4-7"
+      ]
+    }
+  ]
+}
